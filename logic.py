@@ -1,3 +1,5 @@
+import csv
+
 from PyQt6.QtWidgets import *
 from gui import *
 from accountlogic import *
@@ -24,18 +26,28 @@ class GuiLogic(QMainWindow, Ui_yourBank):
         self.bank_info.clicked.connect(lambda: self.get_bank_total())
         self.personal_info.clicked.connect(lambda: self.__str__())
         self.confirm_button.clicked.connect(lambda: self.confirms())
-        self.already_there = False
+        self.already_there: bool = False
 
         self.saving_names: list[str] = []
         self.checking_names: list[str] = []
         self.saving_account: list[SavingAccount] = []
         self.checking_account: list[Account] = []
+        self.getaccountinfo()
+        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
 
     def check_password(self):
+        """
+        Checks to see if the password input is empty.
+        """
         password = self.password_input.text()
         if password.strip() == '':
             raise ValueError
-        elif (self.name_input.text() in self.checking_names) or (self.name_input.text() in self.saving_names):
+
+    def checkCorrectPassword(self):
+        """
+        Checks if the password is the correct one connected to the account.
+        """
+        if (self.name_input.text() in self.checking_names) or (self.name_input.text() in self.saving_names):
             if self.password_input.text() != self.current_account.get_password():
                 raise ValueError
 
@@ -83,15 +95,36 @@ class GuiLogic(QMainWindow, Ui_yourBank):
             self.amount_input.clear()
             self.amount_input.hide()
             self.confirm_button.hide()
-            self.bank_info.show()
-            self.personal_info.show()
             self.name_input.setEnabled(False)
             self.password_input.setEnabled(False)
             self.checking_radio.setEnabled(False)
             self.saving_radio.setEnabled(False)
             self.info_text.setText('Click Done to return home')
+            if self.checking_radio.isChecked():
+                if self.name_input.text() not in self.checking_names:
+                    self.current_account = Account(self.name_input.text(), password=self.password_input.text())
+                    self.checking_names.append(self.name_input.text())
+                    self.checking_account.append(self.current_account)
+                else:
+                    self.current_account = self.get_account_by_name(self.name_input.text())
+                    self.checkCorrectPassword()
+            else:
+                if self.name_input.text() not in self.saving_names:
+                    self.current_account = SavingAccount(self.name_input.text(),password=self.password_input.text())
+                    self.saving_names.append(self.name_input.text())
+                    self.saving_account.append(self.current_account)
+                    self.info_text.setText(
+                        '$100 has been automatically deposited as per Saving Account minimum balance\n\n' + self.info_text.text())
+                else:
+                    self.current_account = self.get_account_by_name(self.name_input.text())
+                    self.checkCorrectPassword()
+
+            self.bank_info.show()
+            self.personal_info.show()
         except:
             self.success_label.setText('Invalid Name/Password')
+            self.name_input.clear()
+            self.password_input.clear()
 
     def get_bank_total(self) -> None:
         """
@@ -136,6 +169,7 @@ class GuiLogic(QMainWindow, Ui_yourBank):
                     self.checking_account.append(self.current_account)
                 else:
                     self.current_account = self.get_account_by_name(self.name_input.text())
+                    self.checkCorrectPassword()
             else:
                 if self.name_input.text() not in self.saving_names:
                     self.current_account = SavingAccount(self.name_input.text(), password=self.password_input.text())
@@ -144,16 +178,16 @@ class GuiLogic(QMainWindow, Ui_yourBank):
                     self.info_text.setText('$100 has been automatically deposited as per Saving Account minimum balance\n\n' + self.info_text.text())
                 else:
                     self.current_account = self.get_account_by_name(self.name_input.text())
+                    self.checkCorrectPassword()
 
             self.amount_input.show()
             self.amount_label.setText('Amount: $')
             self.confirm_button.show()
-            self.dep = True
+            self.dep: bool = True
         except:
             self.success_label.setText('Invalid name/password')
             self.name_input.clear()
             self.password_input.clear()
-            self.name_input.setFocus()
 
     def withdraw_button1(self) -> None:
         """
@@ -181,6 +215,7 @@ class GuiLogic(QMainWindow, Ui_yourBank):
                     self.checking_account.append(self.current_account)
                 else:
                     self.current_account = self.get_account_by_name(self.name_input.text())
+                    self.checkCorrectPassword()
             else:
                 if self.name_input.text() not in self.saving_names:
                     self.current_account = SavingAccount(self.name_input.text(), password=self.password_input.text())
@@ -189,6 +224,7 @@ class GuiLogic(QMainWindow, Ui_yourBank):
                     self.info_text.setText('$100 has been automatically deposited as per Saving Account minimum balance\n\n' + self.info_text.text())
                 else:
                     self.current_account = self.get_account_by_name(self.name_input.text())
+                    self.checkCorrectPassword()
             self.amount_input.show()
             self.amount_label.setText('Amount: $')
             self.confirm_button.show()
@@ -197,17 +233,7 @@ class GuiLogic(QMainWindow, Ui_yourBank):
             self.success_label.setText('Invalid name/password')
             self.name_input.clear()
             self.password_input.clear()
-            self.name_input.setFocus()
 
-    # def deposit(self, amount):
-    #     if amount > 0:
-    #         self.__account_balance += amount
-    #         self.amount_input.hide()
-    #         self.amount_label.setText('')
-    #         self.confirm_button.hide()
-    #         return True
-    #     else:
-    #         return False
 
     def confirms(self) -> None:
         """
@@ -261,25 +287,42 @@ class GuiLogic(QMainWindow, Ui_yourBank):
         """
         Displays account information.
         """
-        try:
-            if self.check_name():
-                raise ValueError
-            if self.checking_radio.isChecked():
-                if self.name_input.text() not in self.checking_names:
-                    self.current_account = Account(self.name_input.text(), password=self.password_input.text())
-                    self.checking_names.append(self.name_input.text())
-                    self.checking_account.append(self.current_account)
-                else:
-                    self.current_account = self.get_account_by_name(self.name_input.text())
-            else:
-                if self.name_input.text() not in self.saving_names:
-                    self.current_account = SavingAccount(self.name_input.text(), password=self.password_input.text())
-                    self.saving_names.append(self.name_input.text())
-                    self.saving_account.append(self.current_account)
-                    self.info_text.setText('$100 has been automatically deposited as per Saving Account minimum balance\n\n' + self.info_text.text())
-                else:
-                    self.current_account = self.get_account_by_name(self.name_input.text())
-            self.personal_info_text.setText(
-                f"Account name = {self.current_account.get_name()}, Account balance = {self.current_account.get_balance():.2f}")
-        except:
-            pass
+        self.personal_info_text.setText(f"Account name = {self.current_account.get_name()}, Account balance = {self.current_account.get_balance():.2f}")
+
+    def getaccountinfo(self):
+        """
+        Reads account info from CSV.
+        """
+        with open('checkaccount.csv', 'r') as file:
+            csv_reader = csv.reader(file)
+            for row in csv_reader:
+                self.current_account = Account(row[0], row[1], float(row[2]))
+                self.checking_names.append(row[0])
+                self.checking_account.append(self.current_account)
+        with open('savingaccount.csv', 'r') as file:
+            csv_reader = csv.reader(file)
+            for row in csv_reader:
+                balance = max(float(row[2]), SavingAccount.minimum)  # Ensure balance is at least the minimum
+                self.current_account = SavingAccount(row[0], row[1], balance, int(row[3]))
+                # self.current_account = SavingAccount(row[0], row[1], int(row[3]))
+                # self.current_account.set_balance((float(row[2]) - 100))
+                self.saving_names.append(row[0])
+                self.saving_account.append(self.current_account)
+    def closeEvent(self, event):
+        self.__exit__(None, None, None)
+        QApplication.quit()
+        event.accept()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        Writes account information to CSV before exiting.
+        :return:
+        """
+        with open('checkaccount.csv', 'w', newline='') as file:
+            write = csv.writer(file)
+            for account in self.checking_account:
+                write.writerow([account.get_name(), account.get_password(), account.get_balance()])
+        with open('savingaccount.csv', 'w', newline='') as file:
+            write = csv.writer(file)
+            for account in self.saving_account:
+                write.writerow([account.get_name(), account.get_password(), account.get_balance(), account.get_depositcount()])
